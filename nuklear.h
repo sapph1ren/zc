@@ -1,4 +1,6 @@
 /*
+/// # Nuklear
+/// ![](https://cloud.githubusercontent.com/assets/8057201/11761525/ae06f0ca-a0c6-11e5-819d-5610b25f6ef4.gif)
 ///
 /// ## Contents
 /// 1. About section
@@ -3423,7 +3425,8 @@ enum nk_edit_flags {
     NK_EDIT_NO_HORIZONTAL_SCROLL    = NK_FLAG(8),
     NK_EDIT_ALWAYS_INSERT_MODE      = NK_FLAG(9),
     NK_EDIT_MULTILINE               = NK_FLAG(10),
-    NK_EDIT_GOTO_END_ON_ACTIVATE    = NK_FLAG(11)
+    NK_EDIT_GOTO_END_ON_ACTIVATE    = NK_FLAG(11),
+	NK_EDIT_WORD_WRAP               = NK_FLAG(12)
 };
 enum nk_edit_types {
     NK_EDIT_SIMPLE  = NK_EDIT_ALWAYS_INSERT_MODE,
@@ -21728,6 +21731,7 @@ nk_textedit_get_width(const struct nk_text_edit *edit, int line_start, int char_
     const char *str = nk_str_at_const(&edit->string, line_start + char_id, &unicode, &len);
     return font->width(font->userdata, font->height, str, len);
 }
+
 NK_INTERN void
 nk_textedit_layout_row(struct nk_text_edit_row *r, struct nk_text_edit *edit,
     int line_start_id, float row_height, const struct nk_user_font *font)
@@ -22871,8 +22875,8 @@ NK_LIB nk_flags
 nk_do_edit(nk_flags *state, struct nk_command_buffer *out,
     struct nk_rect bounds, nk_flags flags, nk_plugin_filter filter,
     struct nk_text_edit *edit, const struct nk_style_edit *style,
-    struct nk_input *in, const struct nk_user_font *font)
-{
+    struct nk_input *in, const struct nk_user_font *font) {
+			
     struct nk_rect area;
     nk_flags ret = 0;
     float row_height;

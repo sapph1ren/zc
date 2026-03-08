@@ -6,6 +6,9 @@
 #include <time.h>
 #include <limits.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 
@@ -17,9 +20,6 @@
 #define NK_GDI_IMPLEMENTATION
 #include "nuklear.h"
 #include "nuklear_gdi.h"
-
-//#include "style.c"
-//#include "ui.c"
 #include "main.h"
 
 struct AppFonts {
@@ -30,14 +30,48 @@ struct AppFonts {
 	struct GdiFont* zc;
 };
 
+float rounding = 10.0f;
+static char text_buffer[4096] = "привет! \v\n Привет!";
+int len;
+int max = 4096;
+struct nk_image my_gui_image;
+#include <string.h>
+
 static void zc_chat(struct nk_context*ctx, int x, int y, struct AppFonts* fonts) {
-	if(nk_begin(ctx, "c", nk_rect(x*0.35, 0, x*0.65, y), NK_WINDOW_BORDER)) {		
-
-
+ 	if(nk_begin(ctx, "c", nk_rect(x*0.35, 0, x*0.65, y), NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR)) {
 		
+		nk_layout_row_dynamic(ctx, y*0.06, 1);
+		if(nk_group_begin(ctx, "p", NK_WINDOW_NO_SCROLLBAR)){
+			nk_fill_rect(nk_window_get_canvas(ctx), nk_rect(x*0.35+5, 5, x*0.2, y*0.06), rounding, nk_rgb(32,34,37));
+			nk_draw_image(nk_window_get_canvas(ctx), nk_rect(x*0.35+7, 7, y*0.055, y*0.055), &my_gui_image, nk_white);
+			nk_label(ctx, "Группа", NK_TEXT_LEFT);
+			nk_group_end(ctx);
+		}
+
+		nk_layout_row_dynamic(ctx, y*0.865, 1);
+		if(nk_group_begin(ctx, "s", 0)){
+			nk_group_end(ctx);
+		}
+		nk_layout_space_begin(ctx, NK_STATIC, y, 4);
+		int i = y*0.015;
+		int b = y*0.04;
+		nk_layout_space_push(ctx, nk_rect(y*0.01, i, b, b));
+		if (nk_button_label(ctx, "+")) { /* action */ }
+		nk_layout_space_push(ctx, nk_rect(y*0.065, i, b, b));
+		if (nk_button_label(ctx, "-")) { /* action */ }
+		nk_layout_space_push(ctx, nk_rect(y*0.115, i, x*0.65-y*0.185, b));
+		if (nk_group_begin(ctx, "edit_box", NK_WINDOW_NO_SCROLLBAR)) {
+			nk_layout_row_dynamic(ctx, b, 1);
+			nk_edit_string(ctx, NK_EDIT_MULTILINE | NK_EDIT_ALWAYS_INSERT_MODE | NK_EDIT_GOTO_END_ON_ACTIVATE | NK_EDIT_SELECTABLE | NK_EDIT_CLIPBOARD, &text_buffer, &len, max, nk_filter_default);
+			nk_group_end(ctx);
+		}
+		
+		nk_layout_space_push(ctx, nk_rect(x*0.65-y*0.055, i, b, b));
+		if (nk_button_label(ctx, "=")) { /* action */ }
+		nk_layout_space_end(ctx);
+
 		nk_end(ctx);
 	}
-	
 }
 
 bool in_voice = false;
@@ -61,7 +95,7 @@ static void zc_voice(struct nk_context*ctx, int x, int y, struct AppFonts* fonts
 			// }
 
 			nk_layout_space_begin(ctx, NK_STATIC, y*0.07, 3);
-			nk_style_push_float(ctx, &ctx->style.button.rounding, 10.0f);
+			nk_style_push_float(ctx, &ctx->style.button.rounding, rounding);
 			nk_layout_space_push(ctx, nk_rect(x*0.11, y*0.33, y*0.06, y*0.06));
 			nk_button_label(ctx, "микр");
 
@@ -77,7 +111,6 @@ static void zc_voice(struct nk_context*ctx, int x, int y, struct AppFonts* fonts
 			nk_style_pop_style_item(ctx);
 			nk_style_pop_float(ctx);
 			nk_layout_space_end(ctx);
-			
 		}
 		else {
 			
@@ -111,7 +144,7 @@ WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam){
     switch (msg)
     {
 	// case WM_CLOSE:
-	// 	// ShowWindow(wnd, SW_HIDE); 
+	//     ShowWindow(wnd, SW_HIDE); 
 	// 	return 0;
 
     case WM_DESTROY:
@@ -137,6 +170,74 @@ void init_fonts(struct AppFonts *f, HWND hwnd, RECT rect){
     f->zc   = nk_gdifont_create("Arial", 36);
 }
 
+HBITMAP create_gdi_bitmap(int w, int h, unsigned char* data) {
+    BITMAPINFO bmi;
+    memset(&bmi, 0, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = w;
+    bmi.bmiHeader.biHeight = -h; // Отрицательная высота, чтобы картинка не была перевернута
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    HDC hdc = GetDC(NULL);
+    void* pBits = NULL;
+    HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &pBits, NULL, 0);
+    if (hBitmap && pBits) {
+        memcpy(pBits, data, w * h * 4);
+    }
+    ReleaseDC(NULL, hdc);
+    return hBitmap;
+}
+
+HBITMAP create_gdi_bitmap_from_raw(int w, int h, unsigned char* data) {
+    BITMAPINFO bmi;
+    memset(&bmi, 0, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = w;
+    bmi.bmiHeader.biHeight = -h; // Чтобы не было перевернуто
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 24; // PPM обычно 3-канальный (RGB), а не 32 (RGBA)
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    HDC hdc = GetDC(NULL);
+    void* pBits = NULL;
+    HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &pBits, NULL, 0);
+    if (hBitmap && pBits) {
+        // GDI ожидает BGR, а в PPM лежит RGB. Нужно поменять каналы местами при копировании.
+        unsigned char* dest = (unsigned char*)pBits;
+        for (int i = 0; i < w * h; i++) {
+            dest[i * 3 + 0] = data[i * 3 + 2]; // B
+            dest[i * 3 + 1] = data[i * 3 + 1]; // G
+            dest[i * 3 + 2] = data[i * 3 + 0]; // R
+        }
+    }
+    ReleaseDC(NULL, hdc);
+    return hBitmap;
+}
+
+void load_txt() {
+    FILE* f = fopen("image.txt", "rb");
+    if (!f) return;
+
+    int w, h, max_val;
+    // Пропускаем заголовок "P6\n%d %d\n255\n"
+    if (fscanf(f, "P6\n%d %d\n%d\n", &w, &h, &max_val) == 3) {
+        size_t data_size = w * h * 3;
+        unsigned char* raw_data = (unsigned char*)malloc(data_size);
+        fread(raw_data, 1, data_size, f);
+
+        HBITMAP hbm = create_gdi_bitmap_from_raw(w, h, raw_data);
+        
+        // Передаем дескриптор в Nuklear
+        my_gui_image = nk_image_ptr((void*)hbm);
+        my_gui_image.w = (unsigned short)w;
+        my_gui_image.h = (unsigned short)h;
+
+        free(raw_data);
+    }
+    fclose(f);
+}
 
 int main(void){
     GdiFont* font;
@@ -174,6 +275,7 @@ int main(void){
     /*set_style(ctx, THEME_RED);*/
     /*set_style(ctx, THEME_BLUE);*/
     //set_style(ctx, THEME_DARK);
+	load_txt();
 	int x = 0;
 	int y = 0;
     while (running) {
