@@ -98,7 +98,7 @@ nk_edit_draw_text(struct nk_command_buffer *out,
     if (!glyph_len) return;
     while ((text_len < byte_len) && glyph_len)
     {
-        if (unicode == '\n') {
+        if (unicode == '\n' || unicode == '\v'){
             /* new line separator so draw previous line */
             struct nk_rect label;
             label.y = pos_y + line_offset;

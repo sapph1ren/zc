@@ -2,6 +2,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
+
+#include "vector.h"
 #include <string.h>
 #include <time.h>
 #include <limits.h>
@@ -17,11 +19,12 @@
 #define NK_INCLUDE_STANDARD_VARARGS
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
 #define NK_IMPLEMENTATION
-#define NK_GDI_IMPLEMENTATION
+#define NK_GDI_IMPLEMENTATION 
 #include "nuklear.h"
-#include "nuklear_gdi.h"
+#include "nuklear_gdi.h"      
 #include "main.h"
-
+#include "sqlite3.h"
+//#include "uv.h"
 struct AppFonts {
     struct GdiFont *f14;
     struct GdiFont *f16;
@@ -74,7 +77,26 @@ static void zc_chat(struct nk_context*ctx, int x, int y, struct AppFonts* fonts)
 	}
 }
 
+static void zc_console(struct nk_context*ctx, int x, int y, struct AppFonts* fonts, char** con){
+	if(nk_begin(ctx, "o", nk_rect(0, 0, x*0.3f, y*0.4), NK_WINDOW_MINIMIZABLE | NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE)){
+		nk_layout_row_dynamic(ctx, y*0.37, 1);
+		if(nk_group_begin(ctx, "m", 0)){
+
+			for (size_t i = 0; i < vec_size(con); i++) {
+				nk_label(ctx, con[i], NK_TEXT_LEFT);
+			}
+			
+			nk_group_end(ctx);
+		}
+		nk_layout_row_dynamic(ctx, y*0.03, 1);
+	}
+	nk_end(ctx);
+	
+}
+
 bool in_voice = false;
+struct nk_list_view v;
+struct nk_list_view v1;
 static void zc_voice(struct nk_context*ctx, int x, int y, struct AppFonts* fonts) {
     if (nk_begin(ctx, "v", nk_rect(0, 0, x * 0.35f, y * 0.7f), NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR)) {
         if (in_voice) {
@@ -132,26 +154,42 @@ static void zc_voice(struct nk_context*ctx, int x, int y, struct AppFonts* fonts
 static void zc_chats(struct nk_context*ctx, int x, int y, struct AppFonts* fonts) {
 	if(nk_begin(ctx, "s", nk_rect(0,y*0.7, x*0.35, y*0.3), NK_WINDOW_BORDER)) {
 		
-		
+		nk_layout_row_dynamic(ctx, y*0.28, 3);
+		if(nk_list_view_begin(ctx, &v, "k", NK_WINDOW_BORDER, y*0.035, 1)){
+			
+			
+			
+			nk_list_view_end(&v);
+		}
+		if(nk_list_view_begin(ctx, &v1, "o", NK_WINDOW_BORDER, y*0.035, 1)){
+
+			
+			
+			nk_list_view_end(&v1);
+		}
+
+		nk_label(ctx, "в разработке", NK_TEXT_CENTERED);
 		
 		nk_end(ctx);
 	}
 	
 }
-
-static LRESULT CALLBACK
-WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam){
-    switch (msg)
-    {
+bool console = false;
+static LRESULT CALLBACK WindowProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam){
+    switch (msg){
 	// case WM_CLOSE:
 	//     ShowWindow(wnd, SW_HIDE); 
 	// 	return 0;
 
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    }
-
+        case WM_DESTROY: {
+			PostQuitMessage(0);
+			return 0;
+		}
+		case WM_KEYDOWN: {
+			if (wparam == VK_F3) {console = !console;}
+			return 0;
+		}
+	}
     if (nk_gdi_handle_event(wnd, msg, wparam, lparam))
         return 0;
 
@@ -240,7 +278,28 @@ void load_txt() {
 }
 
 int main(void){
-    GdiFont* font;
+	char** con = NULL;
+	// проверка бду
+	bool is_bdu = false;
+	///////
+
+	
+
+	sqlite3 *db;
+	int rc = sqlite3_open("C:\\Games\\windows_user.db", &db);
+	if(rc!=SQLITE_OK){ vec_push(con, strdup("[ОШБ] БД НЕ ЗАГРУЖЕНА\n"));}
+	else { vec_push(con, strdup("[ИНф] БД ЗАГРУЖЕНА\n"));}
+	const char *cfg_db = 
+        "PRAGMA journal_mode=WAL;"
+        "PRAGMA synchronous=NORMAL;"
+        "PRAGMA temp_store=MEMORY;"
+        "PRAGMA mmap_size=30000000000;"
+        "PRAGMA cache_size=10000;";
+	rc = sqlite3_exec(db, cfg_db, 0, 0, NULL);
+	if(rc!=SQLITE_OK){ vec_push(con, strdup("[ОШБ] БД НЕ ОПТИМИЗИРОВАНА\n"));}
+	else{ vec_push(con, strdup("[ИНф] БД ОПТИМИЗИРОВАНА\n"));}
+	
+	GdiFont* font;
     struct nk_context *ctx;
 
     WNDCLASSW wc;
@@ -278,10 +337,14 @@ int main(void){
 	load_txt();
 	int x = 0;
 	int y = 0;
+	const struct nk_input *in = &ctx->input;
     while (running) {
         /* Input */
         MSG msg;
         nk_input_begin(ctx);
+		if (nk_input_is_key_down(in, NK_KEY_CTRL) && nk_input_is_key_pressed(in, NK_KEY_TEXT_LINE_START)) {
+			console = !console;
+		}
         if (needs_refresh == 0) {
             if (GetMessageW(&msg, NULL, 0, 0) <= 0)
                 running = 0;
@@ -304,9 +367,11 @@ int main(void){
 			x = rect.right- rect.left;
 			y = rect.bottom - rect.top;
 		}
+		// if ( nk_input_is_key_pressed())
 		zc_voice(ctx, x, y, &f);
 		zc_chats(ctx, x, y, &f);
 		zc_chat(ctx, x, y, &f);
+		if(console){zc_console(ctx, x, y, &f, con);}
 		/* GUI */
         // if (nk_begin(ctx, "Demo", nk_rect(50, 50, 200, 300), NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE| NK_WINDOW_CLOSABLE|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE)){
         //     enum {EASY, HARD};
@@ -329,6 +394,7 @@ int main(void){
         /* Draw */
         nk_gdi_render(nk_rgb(30,30,30));
     }
+	sqlite3_close(db);
 	nk_gdi_shutdown();
     nk_gdifont_del(f.f14);
     nk_gdifont_del(f.f16);
@@ -337,6 +403,7 @@ int main(void){
     nk_gdifont_del(f.zc);
 	ReleaseDC(hwnd, dc);
     UnregisterClassW(wc.lpszClassName, wc.hInstance);
-    return 0;
+	vec_free(con);
+	return 0;
 }
 
