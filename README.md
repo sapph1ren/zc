@@ -17,7 +17,7 @@ Fast, secure and optimized messenger as an ark for Slavs users. Everything in C1
 
 ## Progress
 
-- [ ] basic ui
+- [x] basic ui
 - [ ] db
 - [ ] network
 - [ ] other
